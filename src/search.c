@@ -97,6 +97,8 @@ ssize_t search_buf(const char *buf, const size_t buf_len,
                 }
             }
 
+            int matches_len_old = matches_len;
+
             realloc_matches(&matches, &matches_size, matches_len + matches_spare);
 
             matches[matches_len].start = match_ptr - buf;
@@ -105,6 +107,89 @@ ssize_t search_buf(const char *buf, const size_t buf_len,
             log_debug("Match found. File %s, offset %lu bytes.", dir_full_path, matches[matches_len].start);
             matches_len++;
             match_ptr += opts.query_len;
+
+            char* line_start = match_ptr;
+            char* line_end = match_ptr;
+            while (line_start > buf && *(line_start-1) != '\n') {
+              line_start--;
+            }
+            while (line_end < (buf + buf_len - 1) && *line_end != '\n') {
+              line_end++;
+            }
+
+            int i = 0;
+            for (; i < opts.subquery_len; i++) {
+              subquery *sq = opts.subquery+i;
+              char *submatch_ptr = line_start;
+              while (submatch_ptr < line_end) {
+              /* hash_strnstr only for little-endian platforms that allow unaligned access */
+#if defined(__i386__) || defined(__x86_64__)
+                /* Decide whether to fall back on boyer-moore */
+                char *p;
+                if ((size_t)sq->query_len < 2 * sizeof(uint16_t) - 1 || sq->query_len >= UCHAR_MAX) {
+                  p = boyer_moore_strnstr(submatch_ptr, sq->query, line_end - submatch_ptr, sq->query_len, sq->alpha_skip_lookup, sq->find_skip_lookup, opts.casing == CASE_INSENSITIVE);
+                } else {
+                  p = hash_strnstr(submatch_ptr, sq->query, line_end - submatch_ptr, sq->query_len, sq->h_table, opts.casing == CASE_SENSITIVE);
+                }
+#else
+                p = boyer_moore_strnstr(submatch_ptr, sq->query, line_end - submatch_ptr, sq->query_len, sq->alpha_skip_lookup, sq->find_skip_lookup, opts.casing == CASE_INSENSITIVE);
+#endif
+                if (p == NULL) {
+                  break;
+                }
+                submatch_ptr = p;
+
+                realloc_matches(&matches, &matches_size, matches_len + matches_spare);
+
+                size_t start = submatch_ptr - buf;
+                size_t end = start + sq->query_len;
+                int j;
+                // insert matches to proper position
+                for (j = matches_len; j >= 0; j--) {
+                  if (j == 0) {
+                    // no left, insert here
+                    matches[j].start = start;
+                    matches[j].end = end;
+                    matches_len++;
+                    break;
+                  }
+
+                  match_t left = matches[j - 1];
+
+                  if ((left.start <= start && start <= left.end) ||
+                      (start <= left.end && left.end <= end) ||
+                      (start <= left.start && left.start <= end) ||
+                      (left.start <= end && end <= left.end)) {
+                    // mergeable
+                    // merge to matches[j - 1]
+                    matches[j - 1].start = ag_min(left.start, start);
+                    matches[j - 1].end = ag_max(left.end, end);
+
+                    // revert slidings
+                    int k;
+                    for (k = j; k < matches_len; k++) {
+                      matches[k] = matches[k + 1];
+                    }
+                    break;
+                  } else if (start < left.start) {
+                    matches[j] = matches[j - 1];
+                  } else {
+                    // no left, insert here
+                    matches[j].start = start;
+                    matches[j].end = end;
+                    matches_len++;
+                    break;
+                  }
+                }
+
+                log_debug("Match found. File %s, offset %lu bytes.", dir_full_path, matches[j].start);
+                submatch_ptr += sq->query_len;
+              }
+              if (submatch_ptr == line_start) {
+                matches_len = matches_len_old;
+                break;
+              }
+            }
 
             if (opts.max_matches_per_file > 0 && matches_len >= opts.max_matches_per_file) {
                 log_err("Too many matches in %s. Skipping the rest of this file.", dir_full_path);

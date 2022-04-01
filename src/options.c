@@ -175,7 +175,7 @@ void init_options(void) {
     opts.color_match = ag_strdup(color_match);
     opts.color_line_number = ag_strdup(color_line_number);
     opts.use_thread_affinity = TRUE;
-    opts.criteria = NULL;
+    opts.subquery = NULL;
 }
 
 void cleanup_options(void) {
@@ -526,7 +526,7 @@ void parse_options(int argc, char **argv, char **base_paths[], char **paths[]) {
                 opts.path_sep = '\0';
                 break;
             case 'q':
-              expand_criteria(optarg);
+              add_subquery(optarg);
               break;
             case 0: /* Long option */
                 if (strcmp(longopts[opt_index].name, "ackmate-dir-filter") == 0) {
@@ -863,15 +863,9 @@ void parse_options(int argc, char **argv, char **base_paths[], char **paths[]) {
 #endif
 }
 
-void expand_criteria(char* query) {
-  opts.criteria = ag_realloc(opts.criteria, (opts.criteria_len+1) * sizeof(criteria));
-  opts.criteria[opts.criteria_len].query = strdup(query);
-  opts.criteria[opts.criteria_len].query_len = strlen(query);
-  opts.criteria_len++;
-
-  printf("expand_criteria\n");
-  int i = 0;
-  for (; i < opts.criteria_len; i++) {
-    printf("%d: %s (%d)", i, opts.criteria[i].query, opts.criteria[i].query_len);
-  }
+void add_subquery(char* query) {
+  opts.subquery = ag_realloc(opts.subquery, (opts.subquery_len+1) * sizeof(subquery));
+  opts.subquery[opts.subquery_len].query = strdup(query);
+  opts.subquery[opts.subquery_len].query_len = strlen(query);
+  opts.subquery_len++;
 }

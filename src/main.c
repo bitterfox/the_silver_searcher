@@ -124,6 +124,22 @@ int main(int argc, char **argv) {
         find_skip_lookup = NULL;
         generate_find_skip(opts.query, opts.query_len, &find_skip_lookup, opts.casing == CASE_SENSITIVE);
         generate_hash(opts.query, opts.query_len, h_table, opts.casing == CASE_SENSITIVE);
+
+        int i;
+        for (i = 0; i < opts.subquery_len; i++) {
+          subquery *sq = opts.subquery + i;
+          if (opts.casing == CASE_INSENSITIVE) {
+            /* Search routine needs the query to be lowercase */
+            char *c = sq->query;
+            for (; *c != '\0'; ++c) {
+                *c = (char)tolower(*c);
+            }
+          }
+          generate_alpha_skip(sq->query, sq->query_len, sq->alpha_skip_lookup, opts.casing == CASE_SENSITIVE);
+          sq->find_skip_lookup = NULL;
+          generate_find_skip(sq->query, sq->query_len, &sq->find_skip_lookup, opts.casing == CASE_SENSITIVE);
+          generate_hash(sq->query, sq->query_len, sq->h_table, opts.casing == CASE_SENSITIVE);
+        }
         if (opts.word_regexp) {
             init_wordchar_table();
             opts.literal_starts_wordchar = is_wordchar(opts.query[0]);
