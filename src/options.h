@@ -27,6 +27,11 @@ enum path_print_behavior {
 };
 
 typedef struct {
+    char *query;
+    int query_len;
+} criteria;
+
+typedef struct {
     int ackmate;
     pcre *ackmate_dir_filter;
     pcre_extra *ackmate_dir_filter_extra;
@@ -89,6 +94,8 @@ typedef struct {
     size_t width;
     int word_regexp;
     int workers;
+  criteria *criteria;
+  int criteria_len;
 } cli_options;
 
 /* global options. parse_options gives it sane values, everything else reads from it */
@@ -102,5 +109,7 @@ void print_version(void);
 void init_options(void);
 void parse_options(int argc, char **argv, char **base_paths[], char **paths[]);
 void cleanup_options(void);
+
+void expand_criteria(char* query);
 
 #endif
