@@ -112,6 +112,7 @@ Search Options:\n\
   -w --word-regexp        Only match whole words\n\
   -W --width NUM          Truncate match lines after NUM characters\n\
   -z --search-zip         Search contents of compressed (e.g., gzip) files\n\
+  -q --query PATTERN\
 \n");
     printf("File Types:\n\
 The search can be restricted to certain types of files. Example:\n\
@@ -174,6 +175,7 @@ void init_options(void) {
     opts.color_match = ag_strdup(color_match);
     opts.color_line_number = ag_strdup(color_line_number);
     opts.use_thread_affinity = TRUE;
+    opts.subquery = NULL;
 }
 
 void cleanup_options(void) {
@@ -332,6 +334,7 @@ void parse_options(int argc, char **argv, char **base_paths[], char **paths[]) {
         { "width", required_argument, NULL, 'W' },
         { "word-regexp", no_argument, NULL, 'w' },
         { "workers", required_argument, NULL, 0 },
+        { "query", required_argument, NULL, 'q'},
     };
 
     lang_count = get_lang_count();
@@ -379,7 +382,7 @@ void parse_options(int argc, char **argv, char **base_paths[], char **paths[]) {
     }
 
     char *file_search_regex = NULL;
-    while ((ch = getopt_long(argc, argv, "A:aB:C:cDG:g:FfHhiLlm:nop:QRrSsvVtuUwW:z0", longopts, &opt_index)) != -1) {
+    while ((ch = getopt_long(argc, argv, "A:aB:C:cDG:g:FfHhiLlm:nop:QRrSsvVtuUwW:z0q:", longopts, &opt_index)) != -1) {
         switch (ch) {
             case 'A':
                 if (optarg) {
@@ -522,6 +525,9 @@ void parse_options(int argc, char **argv, char **base_paths[], char **paths[]) {
             case '0':
                 opts.path_sep = '\0';
                 break;
+            case 'q':
+              add_subquery(optarg);
+              break;
             case 0: /* Long option */
                 if (strcmp(longopts[opt_index].name, "ackmate-dir-filter") == 0) {
                     compile_study(&opts.ackmate_dir_filter, &opts.ackmate_dir_filter_extra, optarg, 0, 0);
@@ -855,4 +861,11 @@ void parse_options(int argc, char **argv, char **base_paths[], char **paths[]) {
 #ifdef _WIN32
     windows_use_ansi(opts.color_win_ansi);
 #endif
+}
+
+void add_subquery(char* query) {
+  opts.subquery = ag_realloc(opts.subquery, (opts.subquery_len+1) * sizeof(subquery));
+  opts.subquery[opts.subquery_len].query = strdup(query);
+  opts.subquery[opts.subquery_len].query_len = strlen(query);
+  opts.subquery_len++;
 }

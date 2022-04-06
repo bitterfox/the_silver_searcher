@@ -3,6 +3,7 @@
 
 #include <getopt.h>
 #include <sys/stat.h>
+#include <stdint.h>
 
 #include <pcre.h>
 
@@ -25,6 +26,15 @@ enum path_print_behavior {
     PATH_PRINT_EACH_LINE,
     PATH_PRINT_NOTHING
 };
+
+#define H_SIZE (64 * 1024)
+typedef struct {
+    char *query;
+    int query_len;
+    size_t alpha_skip_lookup[256];
+    size_t *find_skip_lookup;
+    uint8_t h_table[H_SIZE] __attribute__((aligned(64)));
+} subquery;
 
 typedef struct {
     int ackmate;
@@ -89,6 +99,8 @@ typedef struct {
     size_t width;
     int word_regexp;
     int workers;
+    subquery *subquery;
+    int subquery_len;
 } cli_options;
 
 /* global options. parse_options gives it sane values, everything else reads from it */
@@ -102,5 +114,7 @@ void print_version(void);
 void init_options(void);
 void parse_options(int argc, char **argv, char **base_paths[], char **paths[]);
 void cleanup_options(void);
+
+void add_subquery(char* query);
 
 #endif
