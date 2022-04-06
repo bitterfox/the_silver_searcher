@@ -114,8 +114,52 @@ ssize_t search_buf(const char *buf, const size_t buf_len,
     } else {
         int offset_vector[3];
         if (opts.multiline) {
-            while (buf_offset < buf_len &&
-                   (pcre_exec(opts.re, opts.re_extra, buf, buf_len, buf_offset, 0, offset_vector, 3)) >= 0) {
+            /* log_err("Regex match %d, %d", buf_offset, buf_len); */
+            /* int len_limit = buf_len; */
+            while (buf_offset < buf_len) {
+                int n = pcre_exec(opts.re, opts.re_extra, buf, buf_len, buf_offset, 0, offset_vector, 3);
+                if (n == -27) {
+                    // JIT failure, so figure out the length for buffer that the regex is working for
+                    /* log_err("Regex match %d, %d %d, %d", buf_offset, buf_len, n, PCRE_CONFIG_JIT); */
+                    size_t len_limit;
+                    for (len_limit = (buf_len - buf_offset) / 2; len_limit > 0 && pcre_exec(opts.re, opts.re_extra, buf, len_limit, buf_offset, 0, offset_vector, 3) == -27; len_limit = (len_limit - buf_offset) / 2) {
+                        /* log_err("new limit %d, %d", buf_offset, len_limit); */
+                    }
+
+                    while (buf_offset < buf_len) {
+                        size_t len = buf_offset + len_limit;
+                        if (len > buf_len) {
+                            len = buf_len;
+                        }
+                        n = pcre_exec(opts.re, opts.re_extra, buf, len, buf_offset, 0, offset_vector, 3);
+                        /* log_err("buf_offset %d, %d, %d", buf_offset, len_limit, n); */
+                        if (n < 0) {
+                            buf_offset += len_limit / 2;
+                            continue;
+                        }
+                        log_debug("Regex match found. File %s, offset %i bytes.", dir_full_path, offset_vector[0]);
+                        buf_offset = offset_vector[1];
+                        if (offset_vector[0] == offset_vector[1]) {
+                            ++buf_offset;
+                            log_debug("Regex match is of length zero. Advancing offset one byte.");
+                        }
+
+                        realloc_matches(&matches, &matches_size, matches_len + matches_spare);
+
+                        matches[matches_len].start = offset_vector[0];
+                        matches[matches_len].end = offset_vector[1];
+                        matches_len++;
+
+                        if (opts.max_matches_per_file > 0 && matches_len >= opts.max_matches_per_file) {
+                            log_err("Too many matches in %s. Skipping the rest of this file.", dir_full_path);
+                            break;
+                        }
+                    }
+                    break;
+                }
+                if (n < 0) {
+                    break;
+                }
                 log_debug("Regex match found. File %s, offset %i bytes.", dir_full_path, offset_vector[0]);
                 buf_offset = offset_vector[1];
                 if (offset_vector[0] == offset_vector[1]) {
