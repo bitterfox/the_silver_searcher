@@ -216,7 +216,7 @@ void print_file_matches(const char *path, const char *buf, const size_t buf_len,
             print_context_append(&buf[print_context.prev_line_offset], i - print_context.prev_line_offset);
         }
 
-        if (i == buf_len || buf[i] == '\n') {
+        if ((i == buf_len && buf[i - 1] != '\n') || buf[i] == '\n') {
             if (print_context.lines_since_last_match == 0) {
                 if (opts.print_path == PATH_PRINT_EACH_LINE && !opts.search_stream) {
                     print_path(path, ':');
